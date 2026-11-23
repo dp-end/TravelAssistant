@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>TravelAssistant.__Name__</RootNamespace>
+    <UserSecretsId>travel-assistant-__name__</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../packages/dotnet/TravelAssistant.BuildingBlocks/TravelAssistant.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+</Project>
