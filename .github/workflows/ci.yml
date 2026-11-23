@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# Least privilege: CI only needs to read the code.
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the older, now pointless run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: pr-title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Title is passed through an env var, never interpolated into the script (prevents injection).
+      - name: Check Conventional Commits format
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: .+'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must follow Conventional Commits, e.g. 'feat(trip): add search endpoint'. Got: $PR_TITLE"
+            exit 1
+          fi
+
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # The repo has no real services yet, only the template. So we generate a throw-away
+      # service from it and build/test that: this proves the template and BuildingBlocks stay healthy.
+      - name: Generate sample service from template
+        run: python3 scripts/new-dotnet-service.py ci-sample --port 8099 --redis --postgres --rabbitmq
+
+      - name: Restore
+        run: dotnet restore TravelAssistant.slnx
+
+      - name: Build (warnings are errors)
+        run: dotnet build TravelAssistant.slnx --no-restore --configuration Release
+
+      - name: Unit tests (no infrastructure needed)
+        run: dotnet test services/ci-sample/tests/CiSample.UnitTests --no-build --configuration Release --logger "trx;LogFileName=unit.trx"
